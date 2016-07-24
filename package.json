@@ -1,0 +1,25 @@
+{
+  "name": "code-for-america",
+  "version": "0.0.0",
+  "description": "code for america: coding example",
+  "license": "MIT",
+  "author": "dan entous",
+  "private": true,
+  "scripts": {
+    "browserify": "browserify ./assets/js/app.js -o ./public/js/app.js",
+    "jshint": "jshint .",
+    "start": "npm run jshint && npm run browserify && nodemon app.js & npm run watch",
+    "watch": "watchify ./assets/js/app.js -o ./public/js/app.js"
+  },
+  "dependencies": {
+    "browserify": "^13.0.1",
+    "node-ajax": "git+https://github.com/dan-nl/node-ajax.git",
+    "node-sass": "^3.8.0",
+    "papaparse": "^4.1.2"
+  },
+  "devDependencies": {
+    "jshint": "^2.9.2",
+    "nodemon": "^1.9.2",
+    "watchify": "^3.7.0"
+  }
+}
