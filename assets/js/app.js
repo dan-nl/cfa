@@ -190,7 +190,7 @@ function processParsedResponse( parsed_response ) {
 }
 
 function handleColumnHeadingClick() {
-  /* jshint: validthis:true */
+  /* jshint validthis:true */
   var data_index;
 
   data_index = this.getAttribute( 'data-index' );
