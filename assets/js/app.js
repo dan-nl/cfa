@@ -33,7 +33,7 @@ function getTbody( processed_data ) {
     tbody += '<td>' + processed_data[ category ].open + '</td>';
     tbody += '<td>' + processed_data[ category ].closed + '</td>';
     tbody += '<td>' + processed_data[ category ].total + '</td>';
-    tbody += '<td>' + processed_data[ category ].last_date + '</td>';
+    tbody += '<td>' + processed_data[ category ].most_recent_violation_date + '</td>';
     tbody += '</tr>';
   }
 
@@ -47,11 +47,11 @@ function getThead() {
 
   thead = '<thead>';
   thead += '<tr>';
-  thead += '<th>category</th>';
+  thead += '<th>violation category</th>';
   thead += '<th>open</th>';
   thead += '<th>closed</th>';
   thead += '<th>total</th>';
-  thead += '<th>last date</th>';
+  thead += '<th>most recent violation</th>';
   thead += '</tr>';
   thead += '</thead>';
 
@@ -73,28 +73,42 @@ function getTableHtml( processed_data ) {
 }
 
 /**
+ * compares the processed_item.most_recent_violation_date with the current_item.violation_date and
+ * returns the date that is more recent
+ *
  * @param {Object} processed_item
- * @param {Object} item
- * @param {string} item.violation_date
+ * @param {String} processed_item.most_recent_violation_date
+ *
+ * @param {Object} current_item
+ * @param {String} current_item.violation_date
  * @returns {*}
  */
-function getLastDate( processed_item, item ) {
+function getMostRecentDate( processed_item, current_item ) {
   var d1;
   var d2;
   var item_date;
   var processed_item_date;
 
-  item_date = item.violation_date.replace( /\s/, 'T' );
-  processed_item_date = processed_item.last_date.replace( /\s/, 'T' );
+  item_date = current_item.violation_date.replace( /\s/, 'T' );
+  processed_item_date = processed_item.most_recent_violation_date.replace( /\s/, 'T' );
 
   d2 = new Date( item_date );
   d1 = new Date( processed_item_date );
 
   if ( d2 > d1 ) {
-    return item.violation_date;
+    return current_item.violation_date;
   }
 
-  return processed_item.last_date;
+  return processed_item.most_recent_violation_date;
+}
+
+function getNewProcessedDataItem() {
+  return {
+    open: 0,
+    closed: 0,
+    total: 0,
+    most_recent_violation_date: '1970-01-01 00:00:00'
+  };
 }
 
 /**
@@ -102,45 +116,41 @@ function getLastDate( processed_item, item ) {
  * @returns {{}|*}
  */
 function processParsedResponse( parsed_response ) {
-  var data;
-  var i;
-
   /**
-   * @typedef {Object} item
-   * @typedef {string} item.violation_category
-   * @typedef {string} item.violation_date_closed
+   * @typedef {Object} current_item
+   * @typedef {string} current_item.violation_category
+   * @typedef {string} current_item.violation_date_closed
    */
-  var item;
+  var current_item;
+
+  var i;
+  var items;
   var processed_data;
 
-  data = parsed_response.data;
+  items = parsed_response.data;
   processed_data = {};
 
-  for ( i = 0; i < data.length; i += 1 ) {
-    item = data[ i ];
+  for ( i = 0; i < items.length; i += 1 ) {
+    current_item = items[ i ];
 
     // setup initial category entry
-    if ( !processed_data[ item.violation_category ] ) {
-      processed_data[ item.violation_category ] = {};
-      processed_data[ item.violation_category ].open = 0;
-      processed_data[ item.violation_category ].closed = 0;
-      processed_data[ item.violation_category ].total = 0;
-      processed_data[ item.violation_category ].last_date = '1970-01-01 00:00:00';
+    if ( !( processed_data[ current_item.violation_category ] instanceof Object ) ) {
+      processed_data[ current_item.violation_category ] = getNewProcessedDataItem();
     }
 
     // add to totals
-    if ( item.violation_date_closed === '' ) {
-      processed_data[ item.violation_category ].open += 1;
+    if ( current_item.violation_date_closed === '' ) {
+      processed_data[ current_item.violation_category ].open += 1;
     } else {
-      processed_data[ item.violation_category ].closed += 1;
+      processed_data[ current_item.violation_category ].closed += 1;
     }
 
-    processed_data[ item.violation_category ].total += 1;
+    processed_data[ current_item.violation_category ].total += 1;
 
     // determine last violation date
-    processed_data[ item.violation_category ].last_date = getLastDate(
-      processed_data[ item.violation_category ],
-      item
+    processed_data[ current_item.violation_category ].most_recent_violation_date = getMostRecentDate(
+      processed_data[ current_item.violation_category ],
+      current_item
     );
   }
 
