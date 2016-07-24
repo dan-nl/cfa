@@ -4,36 +4,37 @@
  * module variables
  */
 var ajax;
+var arraySort;
 var Papa;
+var processed_rows;
+var table;
 
 /**
  * module dependencies
  */
 ajax = require( 'node-ajax' );
+arraySort = require( 'node-array-sort' );
 Papa = require( 'papaparse' );
 
 /**
- * @param {Object} processed_data
+ * @param rows
  * @returns {string}
  */
-function getTbody( processed_data ) {
-  var categories;
-  var category;
+function getTbody( rows ) {
   var i;
+  var row;
   var tbody;
-
-  categories = Object.keys( processed_data );
 
   tbody = '<tbody>';
 
-  for ( i = 0; i < categories.length; i += 1 ) {
-    category = categories[ i ];
+  for ( i = 0; i < rows.length; i += 1 ) {
+    row = rows[ i ];
     tbody += '<tr>';
-    tbody += '<td>' + category + '</td>';
-    tbody += '<td>' + processed_data[ category ].open + '</td>';
-    tbody += '<td>' + processed_data[ category ].closed + '</td>';
-    tbody += '<td>' + processed_data[ category ].total + '</td>';
-    tbody += '<td>' + processed_data[ category ].most_recent_violation_date + '</td>';
+    tbody += '<td>' + row.violation_category + '</td>';
+    tbody += '<td>' + row.open + '</td>';
+    tbody += '<td>' + row.closed + '</td>';
+    tbody += '<td>' + row.total + '</td>';
+    tbody += '<td>' + row.most_recent_violation_date + '</td>';
     tbody += '</tr>';
   }
 
@@ -47,11 +48,11 @@ function getThead() {
 
   thead = '<thead>';
   thead += '<tr>';
-  thead += '<th>violation category</th>';
-  thead += '<th>open</th>';
-  thead += '<th>closed</th>';
-  thead += '<th>total</th>';
-  thead += '<th>most recent violation</th>';
+  thead += '<th data-index="violation_category">violation category</th>';
+  thead += '<th data-index="open">open</th>';
+  thead += '<th data-index="closed">closed</th>';
+  thead += '<th data-index="total">total</th>';
+  thead += '<th data-index="most_recent_violation_date">most recent violation</th>';
   thead += '</tr>';
   thead += '</thead>';
 
@@ -59,108 +60,159 @@ function getThead() {
 }
 
 /**
- * @param {Object} processed_data
- * @returns {string|*}
+ * @param {Array} rows
+ * @returns {string}
  */
-function getTableHtml( processed_data ) {
+function getTableHtml( rows ) {
   var html;
 
   html = '';
   html += getThead();
-  html += getTbody( processed_data );
+  html += getTbody( rows );
 
   return html;
 }
 
 /**
- * compares the processed_item.most_recent_violation_date with the current_item.violation_date and
+ * compares the row.most_recent_violation_date with the data_item.violation_date and
  * returns the date that is more recent
  *
- * @param {Object} processed_item
- * @param {String} processed_item.most_recent_violation_date
+ * @param {Object} data_item
+ * @param {string} data_item.violation_date
  *
- * @param {Object} current_item
- * @param {String} current_item.violation_date
- * @returns {*}
+ * @param {Object} row
+ * @param {string} row.most_recent_violation_date
+ *
+ * @returns {string}
  */
-function getMostRecentDate( processed_item, current_item ) {
+function getMostRecentDate( data_item, row ) {
   var d1;
   var d2;
-  var item_date;
-  var processed_item_date;
+  var data_item_date;
+  var row_date;
 
-  item_date = current_item.violation_date.replace( /\s/, 'T' );
-  processed_item_date = processed_item.most_recent_violation_date.replace( /\s/, 'T' );
+  data_item_date = data_item.violation_date.replace( /\s/, 'T' );
+  row_date = row.most_recent_violation_date.replace( /\s/, 'T' );
 
-  d2 = new Date( item_date );
-  d1 = new Date( processed_item_date );
+  d1 = new Date( data_item_date );
+  d2 = new Date( row_date );
 
-  if ( d2 > d1 ) {
-    return current_item.violation_date;
+  if ( d1 > d2 ) {
+    return data_item.violation_date;
   }
 
-  return processed_item.most_recent_violation_date;
+  return row.most_recent_violation_date;
 }
 
-function getNewProcessedDataItem() {
+/**
+ * @param {string} violation_category
+ * @returns {Object}
+ */
+function addNewDataRow( violation_category ) {
   return {
-    open: 0,
     closed: 0,
+    most_recent_violation_date: '1970-01-01 00:00:00',
+    open: 0,
     total: 0,
-    most_recent_violation_date: '1970-01-01 00:00:00'
+    violation_category: violation_category
   };
 }
 
 /**
- * @param {Object} parsed_response
- * @returns {{}|*}
+ * @param {Object} data_item
+ * @param {Array} rows
+ * @returns {number}
  */
-function processParsedResponse( parsed_response ) {
-  /**
-   * @typedef {Object} current_item
-   * @typedef {string} current_item.violation_category
-   * @typedef {string} current_item.violation_date_closed
-   */
-  var current_item;
-
+function getRowIndex( data_item, rows ) {
   var i;
-  var items;
-  var processed_data;
+  var row_index;
 
-  items = parsed_response.data;
-  processed_data = {};
-
-  for ( i = 0; i < items.length; i += 1 ) {
-    current_item = items[ i ];
-
-    // setup initial category entry
-    if ( !( processed_data[ current_item.violation_category ] instanceof Object ) ) {
-      processed_data[ current_item.violation_category ] = getNewProcessedDataItem();
+  for ( i = 0; i < rows.length; i += 1 ) {
+    if ( rows[ i ].violation_category === data_item.violation_category ) {
+      row_index = i;
+      break;
     }
-
-    // add to totals
-    if ( current_item.violation_date_closed === '' ) {
-      processed_data[ current_item.violation_category ].open += 1;
-    } else {
-      processed_data[ current_item.violation_category ].closed += 1;
-    }
-
-    processed_data[ current_item.violation_category ].total += 1;
-
-    // determine last violation date
-    processed_data[ current_item.violation_category ].most_recent_violation_date = getMostRecentDate(
-      processed_data[ current_item.violation_category ],
-      current_item
-    );
   }
 
-  return processed_data;
+  if ( typeof row_index !== 'number' ) {
+    rows.push( addNewDataRow( data_item.violation_category ) );
+    row_index = rows.length - 1;
+  }
+
+  return row_index;
+}
+
+/**
+ * @param {Object} data_item
+ * @param {Array} rows
+ * @returns {Array}
+ */
+function addDataItemToRows( data_item, rows ) {
+  var row_index;
+
+  row_index = getRowIndex( data_item, rows );
+
+  // add to totals
+  if ( data_item.violation_date_closed === '' ) {
+    rows[ row_index ].open += 1;
+  } else {
+    rows[ row_index ].closed += 1;
+  }
+
+  rows[ row_index ].total += 1;
+
+  // determine last violation date
+  rows[ row_index ].most_recent_violation_date = getMostRecentDate(
+    data_item,
+    rows[ row_index ]
+  );
+
+  return rows;
+}
+
+/**
+ * @param {Object} parsed_response
+ * @returns {Array}
+ */
+function processParsedResponse( parsed_response ) {
+  var i;
+  var data_items;
+  var rows;
+
+  data_items = parsed_response.data;
+  rows = [];
+
+  for ( i = 0; i < data_items.length; i += 1 ) {
+    rows = addDataItemToRows( data_items[ i ], rows );
+  }
+
+  return rows;
+}
+
+function handleColumnHeadingClick() {
+  /* jshint: validthis:true */
+  var data_index;
+
+  data_index = this.getAttribute( 'data-index' );
+  processed_rows = arraySort( processed_rows, data_index );
+  table.innerHTML = getTableHtml( processed_rows );
+  addColumnHeadingListeners();
+}
+
+function addColumnHeadingListeners() {
+  var column_headings;
+  var i;
+
+  column_headings = table.getElementsByTagName( 'th' );
+
+  for ( i = 0; i < column_headings.length; i += 1 ) {
+    column_headings[ i ].addEventListener( 'click', handleColumnHeadingClick );
+  }
 }
 
 module.exports = function init() {
   var parsed_response;
   var response;
-  var table;
 
   table = document.getElementsByTagName( 'table' )[ 0 ];
 
@@ -173,7 +225,9 @@ module.exports = function init() {
       function ( xhr ) {
         response = ajax.getXhrResponse( xhr );
         parsed_response = Papa.parse( response, { dynamicTyping: true, header: true } );
-        table.innerHTML = getTableHtml( processParsedResponse( parsed_response ) );
+        processed_rows = processParsedResponse( parsed_response );
+        table.innerHTML = getTableHtml( processed_rows );
+        addColumnHeadingListeners( table );
       }
     )
     .catch(
