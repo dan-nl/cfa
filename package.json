@@ -14,7 +14,7 @@
   "dependencies": {
     "browserify": "^13.0.1",
     "node-ajax": "git+https://github.com/dan-nl/node-ajax.git",
-    "node-array-sort": "git+https://github.com/dan-nl/node-array-sort.git",
+    "node-array-object-sort": "git+https://github.com/dan-nl/node-array-object-sort.git",
     "node-sass": "^3.8.0",
     "papaparse": "^4.1.2"
   },

@@ -4,16 +4,18 @@
  * module variables
  */
 var ajax;
-var arraySort;
+var arrayObjectSort;
+var column_headings;
 var Papa;
 var processed_rows;
 var table;
+var tbody;
 
 /**
  * module dependencies
  */
 ajax = require( 'node-ajax' );
-arraySort = require( 'node-array-sort' );
+arrayObjectSort = require( 'node-array-object-sort' );
 Papa = require( 'papaparse' );
 
 /**
@@ -43,32 +45,20 @@ function getTbody( rows ) {
   return tbody;
 }
 
-function getThead() {
-  var thead;
-
-  thead = '<thead>';
-  thead += '<tr>';
-  thead += '<th data-index="violation_category">violation category</th>';
-  thead += '<th data-index="open">open</th>';
-  thead += '<th data-index="closed">closed</th>';
-  thead += '<th data-index="total">total</th>';
-  thead += '<th data-index="most_recent_violation_date">most recent violation</th>';
-  thead += '</tr>';
-  thead += '</thead>';
-
-  return thead;
-}
-
-/**
- * @param {Array} rows
- * @returns {string}
- */
-function getTableHtml( rows ) {
+function setupTable() {
   var html;
 
-  html = '';
-  html += getThead();
-  html += getTbody( rows );
+  html = '<thead>';
+  html += '<tr>';
+  html += '<th data-index="violation_category" data-sort-order="asc">violation category</th>';
+  html += '<th data-index="open" data-sort-order="asc">open</th>';
+  html += '<th data-index="closed" data-sort-order="asc">closed</th>';
+  html += '<th data-index="total" data-sort-order="asc">total</th>';
+  html += '<th data-index="most_recent_violation_date" data-sort-order="asc">most recent violation</th>';
+  html += '</tr>';
+  html += '</thead>';
+
+  html += '<tbody></tbody>';
 
   return html;
 }
@@ -144,7 +134,11 @@ function getRowIndex( data_item, rows ) {
 
 /**
  * @param {Object} data_item
+ * @param {string} data_item.violation_date
+ * @param {string} data_item.violation_date_closed
+ *
  * @param {Array} rows
+ *
  * @returns {Array}
  */
 function addDataItemToRows( data_item, rows ) {
@@ -189,21 +183,37 @@ function processParsedResponse( parsed_response ) {
   return rows;
 }
 
+/**
+ * @param {HTMLElement} col_heading
+ * @param {string} data_sort_order
+ */
+function toggleColumnHeadingSortOrder( col_heading, data_sort_order ) {
+  if ( data_sort_order === 'asc' ) {
+    col_heading.setAttribute( 'data-sort-order', 'dsc' );
+  } else {
+    col_heading.setAttribute( 'data-sort-order', 'asc' );
+  }
+}
+
 function handleColumnHeadingClick() {
   /* jshint validthis:true */
   var data_index;
+  var data_sort_order;
+  var elm;
 
-  data_index = this.getAttribute( 'data-index' );
-  processed_rows = arraySort( processed_rows, data_index );
-  table.innerHTML = getTableHtml( processed_rows );
+  elm = this;
+  data_index = elm.getAttribute( 'data-index' );
+  data_sort_order = elm.getAttribute( 'data-sort-order' );
+
+  processed_rows = arrayObjectSort( processed_rows, data_index, data_sort_order );
+  tbody.innerHTML = getTbody( processed_rows );
+
+  toggleColumnHeadingSortOrder( elm, data_sort_order );
   addColumnHeadingListeners();
 }
 
 function addColumnHeadingListeners() {
-  var column_headings;
   var i;
-
-  column_headings = table.getElementsByTagName( 'th' );
 
   for ( i = 0; i < column_headings.length; i += 1 ) {
     column_headings[ i ].addEventListener( 'click', handleColumnHeadingClick );
@@ -226,7 +236,12 @@ module.exports = function init() {
         response = ajax.getXhrResponse( xhr );
         parsed_response = Papa.parse( response, { dynamicTyping: true, header: true } );
         processed_rows = processParsedResponse( parsed_response );
-        table.innerHTML = getTableHtml( processed_rows );
+
+        table.innerHTML = setupTable();
+        column_headings = table.getElementsByTagName( 'th' );
+        tbody = table.getElementsByTagName( 'tbody' )[ 0 ];
+        tbody.innerHTML = getTbody( processed_rows );
+
         addColumnHeadingListeners( table );
       }
     )
